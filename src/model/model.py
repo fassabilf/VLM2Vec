@@ -11,11 +11,12 @@ from src.model.processor import LLAVA_NEXT, QWEN2_VL, PHI3V, get_backbone_name, 
 
 from src.arguments import ModelArguments
 from src.model.processor import LLAVA_NEXT, QWEN2_VL, PHI3V, get_backbone_name, print_master, QWEN2_5_VL, INTERNVIDEO2, \
-    QWEN2_VL_TOKENSELECTION, backbone2model, GME, VLM_IMAGE_TOKENS, LamRA, LamRA_QWEN2_5, COLPALI
+    QWEN2_VL_TOKENSELECTION, backbone2model, GME, VLM_IMAGE_TOKENS, LamRA, LamRA_QWEN2_5, COLPALI, SIGLIP
 from src.model.baseline_backbone.colpali import ColPali
 from src.model.baseline_backbone.gme.gme_inference import GmeQwen2VL
 from src.model.baseline_backbone.lamra.lamra_inference import LamRAQwen2VL
 from src.model.baseline_backbone.lamra.lamra_qwen25_inference import LamRAQwen25VL
+from src.model.baseline_backbone.siglip.siglip_inference import SiglipModel
 from src.model.baseline_backbone.phi3_v.modeling_phi3_v import Phi3VForCausalLM
 from src.model.baseline_backbone.llava_next import LlavaNextForConditionalGeneration
 
@@ -88,6 +89,11 @@ class MMEBModel(nn.Module):
             return pooled_output
         elif getattr(self, "model_backbone", None) == COLPALI:
             pooled_output = self.encoder(**input, return_dict=True, output_hidden_states=True)
+            return pooled_output
+        elif getattr(self, "model_backbone", None) == SIGLIP:
+            texts = [text for text in input.get("texts", [])]
+            images = input.get("images", [])
+            pooled_output = self.encoder.get_fused_embeddings(texts=texts, images=images)
             return pooled_output
         elif getattr(self, "model_backbone", None) == LLAVA_NEXT:
             input['pixel_values'] = input['pixel_values'].squeeze(dim=1)
@@ -254,6 +260,12 @@ class MMEBModel(nn.Module):
             setattr(base_model, 'config', config)
         elif model_args.model_backbone == COLPALI:
             base_model = ColPali.from_pretrained(model_args.model_name)
+            setattr(base_model, 'config', config)
+        elif model_args.model_backbone == SIGLIP:
+            base_model = SiglipModel(
+                model_name=model_args.model_name,
+                processor=kwargs.get('processor', None),
+            )
             setattr(base_model, 'config', config)
         else:
             # Loading external base model from HF

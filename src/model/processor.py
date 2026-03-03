@@ -17,7 +17,7 @@ from src.model.vlm_backbone.qwen2_vl import Qwen2VLForConditionalGeneration, Qwe
 from src.model.vlm_backbone.qwen2_vl_tokenselection import \
     Qwen2VLForConditionalGeneration as Qwen2VLTokenSelectionForConditionalGeneration, \
     Qwen2VLProcessor as Qwen2VLTokenSelectionProcessor
-from src.model.baseline_backbone.internvideo2.modeling_internvideo2 import InternVideo2_Stage2
+# InternVideo2 is imported lazily inside load_processor to avoid requiring flash_attn at module level
 from src.model.vlm_backbone.qwen2_5_vl import Qwen2_5_VLForConditionalGeneration
 from src.model.vlm_backbone.qwen2_5_vl_tokenselection import \
     Qwen2_5_VLForConditionalGeneration as Qwen2_5_VL_TokenSelectionForConditionalGeneration
@@ -39,6 +39,7 @@ LamRA = 'lamra'  # QWEN2-VL
 LamRA_QWEN2_5 = 'lamra_qwen25'  # QWEN2.5-VL
 COLPALI = 'colpali'  # PaliGemma-3B
 E5_V = 'e5_v'  # Llava_next
+SIGLIP = 'siglip'  # SigLIP dual-encoder
 MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if not provided
     'phi3_v': PHI3V,
     'llava_next': LLAVA_NEXT,
@@ -53,6 +54,7 @@ MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if no
     'lamra_qwen25': LamRA,
     'colpali': COLPALI,
     'e5_v': E5_V,
+    'siglip': SIGLIP,
 }
 SUPPORTED_MODELS = set(MODEL2BACKBONE.keys())
 
@@ -83,6 +85,7 @@ VLM_VIDEO_TOKENS = {
     INTERNVIDEO2: "",
     COLPALI: "",
     E5_V: "<image>",
+    SIGLIP: "",
 }
 
 backbone2model = {
@@ -92,7 +95,6 @@ backbone2model = {
     QWEN2_5_VL: Qwen2_5_VLForConditionalGeneration,
     QWEN2_VL_TOKENSELECTION: Qwen2VLTokenSelectionForConditionalGeneration,
     QWEN2_5_VL_TOKENSELECTION: Qwen2_5_VL_TokenSelectionForConditionalGeneration,
-    INTERNVIDEO2: InternVideo2_Stage2,
     E5_V: LlavaNextForConditionalGeneration,
 }
 
@@ -183,6 +185,12 @@ def load_processor(model_args, data_args=None):
     elif model_args.model_backbone == COLPALI:
         from transformers import AutoProcessor
         processor = ColPaliProcessor.from_pretrained(model_args.model_name)
+    elif model_args.model_backbone == SIGLIP:
+        from transformers import AutoProcessor
+        processor = AutoProcessor.from_pretrained(
+            model_args.processor_name if model_args.processor_name else model_args.model_name,
+            trust_remote_code=True,
+        )
     else:
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(
@@ -647,6 +655,15 @@ PROMPT_TEMPLATE_DICT = {
 }
 
 
+def Siglip_process_fn(model_inputs: dict, processor, max_length=None):
+    """Simple passthrough for SigLIP. The SiglipModel handles its own processing."""
+    inputs = {
+        'texts': model_inputs['text'],
+        'images': model_inputs['images'],
+    }
+    return inputs
+
+
 def process_input_text(instruction, model_backbone, text=None, add_video_token=False, add_image_token=False):
     # Formulate input text based on text, special token and instruction.
     # TBD: Reorganize the hard-code part for baselines such as internvideo2
@@ -659,6 +676,12 @@ def process_input_text(instruction, model_backbone, text=None, add_video_token=F
             return instruction + " "
     elif model_backbone == E5_V:
         return PROMPT_TEMPLATE_DICT[model_backbone](text, add_video_token, add_image_token)
+    elif model_backbone == SIGLIP:
+        # SigLIP handles text directly, no special tokens needed
+        if text:
+            return instruction + " " + text
+        else:
+            return instruction + " "
 
     prompt = instruction
     if text:
@@ -686,4 +709,5 @@ process_vlm_inputs_fns = {
     LamRA_QWEN2_5: Gme_process_fn,
     COLPALI: ColPali_process_fn,
     E5_V: Llava_NEXT_process_fn,
+    SIGLIP: Siglip_process_fn,
 }
