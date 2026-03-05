@@ -71,6 +71,7 @@ VLM_IMAGE_TOKENS = {
     INTERNVIDEO2: "",
     COLPALI: "",
     E5_V: "<image>",
+    SIGLIP: "",
 }
 
 VLM_VIDEO_TOKENS = {

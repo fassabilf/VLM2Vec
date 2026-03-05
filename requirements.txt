@@ -2,7 +2,7 @@ accelerate
 datasets
 decord
 einops
-flash-attn  # check out orginal repo README for accelerating installation: https://github.com/Dao-AILab/flash-attention
+# flash-attn  # check out orginal repo README for accelerating installation: https://github.com/Dao-AILab/flash-attention
 hjson
 hnswlib
 huggingface-hub
