@@ -15,7 +15,7 @@ import yaml
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import HfArgumentParser, AutoConfig
+from transformers import HfArgumentParser, AutoConfig, PretrainedConfig
 from datasets import Dataset, concatenate_datasets
 from datasets.distributed import split_dataset_by_node
 
@@ -168,8 +168,19 @@ def main():
     training_args: TrainingArguments
     os.makedirs(data_args.encode_output_path, exist_ok=True)
 
-    # --- Model Loading ---
-    hf_config = AutoConfig.from_pretrained(model_args.model_name, trust_remote_code=True)
+    SELF_CONTAINED_BACKBONES = {"metaclip2", "siglip", "colpali", "internvideo2"}
+    explicit_backbone = getattr(model_args, "model_backbone", None)
+    if explicit_backbone and explicit_backbone in SELF_CONTAINED_BACKBONES:
+        hf_config = PretrainedConfig(model_type=explicit_backbone)
+    else:
+        try:
+            hf_config = AutoConfig.from_pretrained(model_args.model_name, trust_remote_code=True)
+        except ValueError as e:
+            if explicit_backbone:
+                print_master(f"⚠️  AutoConfig gagal ({e}). Pakai dummy config untuk backbone '{explicit_backbone}'.")
+                hf_config = PretrainedConfig(model_type=explicit_backbone)
+            else:
+                raise
     if not getattr(model_args, "model_backbone", None):
         model_backbone = get_backbone_name(hf_config=hf_config, model_type=model_args.model_type)
         setattr(model_args, 'model_backbone', model_backbone)

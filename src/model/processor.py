@@ -40,6 +40,8 @@ LamRA_QWEN2_5 = 'lamra_qwen25'  # QWEN2.5-VL
 COLPALI = 'colpali'  # PaliGemma-3B
 E5_V = 'e5_v'  # Llava_next
 SIGLIP = 'siglip'  # SigLIP dual-encoder
+METACLIP2 = 'metaclip2'  # MetaCLIP 2 dual-encoder
+
 MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if not provided
     'phi3_v': PHI3V,
     'llava_next': LLAVA_NEXT,
@@ -49,12 +51,14 @@ MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if no
     'qwen2_vl_tokenselection': QWEN2_VL_TOKENSELECTION,
     'qwen2_5_vl_tokenselection': QWEN2_5_VL_TOKENSELECTION,
     'internvideo2': INTERNVIDEO2,
-    'gme': GME, 
+    'gme': GME,
     'lamra': LamRA,
     'lamra_qwen25': LamRA,
     'colpali': COLPALI,
     'e5_v': E5_V,
     'siglip': SIGLIP,
+    'metaclip_2': METACLIP2,
+    'metaclip2': METACLIP2,    
 }
 SUPPORTED_MODELS = set(MODEL2BACKBONE.keys())
 
@@ -72,6 +76,7 @@ VLM_IMAGE_TOKENS = {
     COLPALI: "",
     E5_V: "<image>",
     SIGLIP: "",
+    METACLIP2: "",
 }
 
 VLM_VIDEO_TOKENS = {
@@ -87,6 +92,7 @@ VLM_VIDEO_TOKENS = {
     COLPALI: "",
     E5_V: "<image>",
     SIGLIP: "",
+    METACLIP2: "",
 }
 
 backbone2model = {
@@ -149,7 +155,7 @@ def load_processor(model_args, data_args=None):
             model_name_or_path,
             image_processor=image_processor, tokenizer=tokenizer,
             uigraph_use=model_args.uigraph_use,
-            uigraph_diff=model_args.uigraph_diff,  uigraph_rand=model_args.uigraph_rand,
+            uigraph_diff=model_args.uigraph_diff, uigraph_rand=model_args.uigraph_rand,
             uimask_ratio=model_args.uimask_ratio, uimask_rand=model_args.uimask_rand
         )
     elif model_args.model_backbone in [QWEN2_5_VL, LamRA_QWEN2_5]:
@@ -178,7 +184,7 @@ def load_processor(model_args, data_args=None):
             model_name_or_path,
             image_processor=image_processor, tokenizer=tokenizer,
             uigraph_use=model_args.uigraph_use,
-            uigraph_diff=model_args.uigraph_diff,  uigraph_rand=model_args.uigraph_rand,
+            uigraph_diff=model_args.uigraph_diff, uigraph_rand=model_args.uigraph_rand,
             uimask_ratio=model_args.uimask_ratio, uimask_rand=model_args.uimask_rand
         )
     elif model_args.model_backbone == INTERNVIDEO2:
@@ -187,6 +193,12 @@ def load_processor(model_args, data_args=None):
         from transformers import AutoProcessor
         processor = ColPaliProcessor.from_pretrained(model_args.model_name)
     elif model_args.model_backbone == SIGLIP:
+        from transformers import AutoProcessor
+        processor = AutoProcessor.from_pretrained(
+            model_args.processor_name if model_args.processor_name else model_args.model_name,
+            trust_remote_code=True,
+        )
+    elif model_args.model_backbone == METACLIP2:
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(
             model_args.processor_name if model_args.processor_name else model_args.model_name,
@@ -364,14 +376,9 @@ def Qwen2_VL_process_fn(model_inputs: dict, processor: Qwen2VLProcessor, max_len
     # 2. padding inputs
     batch_encoding = processor.tokenizer.pad({'input_ids': input_ids}, return_tensors="pt")
     input_ids, attention_mask = batch_encoding['input_ids'], batch_encoding['attention_mask']
-    # manually enforce long type due to:
-    # (1) [rank7]: RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got torch.cuda.FloatTensor instead (while checking arguments for embedding)
-    # (2) [rank7]:   File "/fsx/home/ruimeng/project/VLM2Vec/src/model.py", line 45, in _pooling
-    #     [rank7]:     reps = last_hidden_state[
-    #     [rank7]: IndexError: tensors used as indices must be long, int, byte or bool tensors
     inputs = {
         'input_ids': input_ids.long(),
-        'attention_mask': attention_mask.long(), 
+        'attention_mask': attention_mask.long(),
         'texts': texts,
         'images': visual_inputs,
     }
@@ -459,11 +466,6 @@ def Qwen2_VL_TokenSelection_process_fn(model_inputs: dict, processor: Qwen2VLTok
             padded_key = [torch.nn.functional.pad(pos, (0, max_length - pos.size(1)), value=True) for pos in key_tmp]
             select_mask = torch.cat(padded_key, dim=0)
 
-    # manually enforce long type due to:
-    # (1) [rank7]: RuntimeError: Expected tensor for argument #1 'indices' to have one of the following scalar types: Long, Int; but got torch.cuda.FloatTensor instead (while checking arguments for embedding)
-    # (2) [rank7]:   File "/fsx/home/ruimeng/project/VLM2Vec/src/model.py", line 45, in _pooling
-    #     [rank7]:     reps = last_hidden_state[
-    #     [rank7]: IndexError: tensors used as indices must be long, int, byte or bool tensors
     inputs = {
         'input_ids': input_ids.long(),
         'attention_mask': attention_mask.long()
@@ -528,7 +530,7 @@ def InternVL_process_fn(model_inputs: dict, processor, max_length=None):
 
 def ColPali_process_fn(model_inputs: dict, processor, max_length=None):
     texts, images = model_inputs['text'], model_inputs['images']
-    
+
     input_ids_batch = []
     attention_mask_batch = []
     pixel_values_batch = []
@@ -549,7 +551,7 @@ def ColPali_process_fn(model_inputs: dict, processor, max_length=None):
         {'input_ids': input_ids_batch, 'attention_mask': attention_mask_batch},
         return_tensors="pt"
     )
-    
+
     final_input_ids = padded_text_inputs['input_ids']
     final_attention_mask = padded_text_inputs['attention_mask']
 
@@ -561,7 +563,7 @@ def ColPali_process_fn(model_inputs: dict, processor, max_length=None):
             if pv is not None:
                 representative_pv_shape = pv.shape
                 break
-        
+
         processed_pixel_values = []
         for pv in pixel_values_batch:
             if pv is None:
@@ -665,6 +667,15 @@ def Siglip_process_fn(model_inputs: dict, processor, max_length=None):
     return inputs
 
 
+def MetaCLIP2_process_fn(model_inputs: dict, processor, max_length=None):
+    """Simple passthrough for MetaCLIP 2. The MetaCLIP2Model handles its own processing."""
+    inputs = {
+        'texts': model_inputs['text'],
+        'images': model_inputs['images'],
+    }
+    return inputs
+
+
 def process_input_text(instruction, model_backbone, text=None, add_video_token=False, add_image_token=False):
     # Formulate input text based on text, special token and instruction.
     # TBD: Reorganize the hard-code part for baselines such as internvideo2
@@ -672,13 +683,19 @@ def process_input_text(instruction, model_backbone, text=None, add_video_token=F
         return text
     elif model_backbone in [GME, LamRA, LamRA_QWEN2_5]:
         if text:
-            return instruction + " " + text # GME and LamRA do not need special tokens
+            return instruction + " " + text  # GME and LamRA do not need special tokens
         else:
             return instruction + " "
     elif model_backbone == E5_V:
         return PROMPT_TEMPLATE_DICT[model_backbone](text, add_video_token, add_image_token)
     elif model_backbone == SIGLIP:
         # SigLIP handles text directly, no special tokens needed
+        if text:
+            return instruction + " " + text
+        else:
+            return instruction + " "
+    elif model_backbone == METACLIP2:
+        # MetaCLIP 2 handles text directly, no special tokens needed
         if text:
             return instruction + " " + text
         else:
@@ -711,4 +728,5 @@ process_vlm_inputs_fns = {
     COLPALI: ColPali_process_fn,
     E5_V: Llava_NEXT_process_fn,
     SIGLIP: Siglip_process_fn,
+    METACLIP2: MetaCLIP2_process_fn,
 }

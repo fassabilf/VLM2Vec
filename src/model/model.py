@@ -11,12 +11,13 @@ from src.model.processor import LLAVA_NEXT, QWEN2_VL, PHI3V, get_backbone_name, 
 
 from src.arguments import ModelArguments
 from src.model.processor import LLAVA_NEXT, QWEN2_VL, PHI3V, get_backbone_name, print_master, QWEN2_5_VL, INTERNVIDEO2, \
-    QWEN2_VL_TOKENSELECTION, backbone2model, GME, VLM_IMAGE_TOKENS, LamRA, LamRA_QWEN2_5, COLPALI, SIGLIP
+    QWEN2_VL_TOKENSELECTION, backbone2model, GME, VLM_IMAGE_TOKENS, LamRA, LamRA_QWEN2_5, COLPALI, SIGLIP, METACLIP2
 from src.model.baseline_backbone.colpali import ColPali
 from src.model.baseline_backbone.gme.gme_inference import GmeQwen2VL
 from src.model.baseline_backbone.lamra.lamra_inference import LamRAQwen2VL
 from src.model.baseline_backbone.lamra.lamra_qwen25_inference import LamRAQwen25VL
 from src.model.baseline_backbone.siglip.siglip_inference import SiglipModel
+from src.model.baseline_backbone.metaclip2.metaclip2_inference import MetaCLIP2Model
 from src.model.baseline_backbone.phi3_v.modeling_phi3_v import Phi3VForCausalLM
 from src.model.baseline_backbone.llava_next import LlavaNextForConditionalGeneration
 
@@ -74,14 +75,13 @@ class MMEBModel(nn.Module):
                 vfeat /= vfeat.norm(dim=-1, keepdim=True)
                 return vfeat
         elif getattr(self, "model_backbone", None) in [GME, LamRA, LamRA_QWEN2_5]:
-            # pooled_output = self.encoder(**input, return_dict=True, output_hidden_states=True)
-            texts = [text.replace(VLM_IMAGE_TOKENS[QWEN2_VL] + '\n', '') for text in input["texts"]] # we are actually passing video queries so this should not happen
+            texts = [text.replace(VLM_IMAGE_TOKENS[QWEN2_VL] + '\n', '') for text in input["texts"]]
             images = []
             for imgs in input['images']:
                 # if multi images are given, select the middle frame only
                 if isinstance(imgs, list):
                     imgs = imgs[len(imgs) // 2]
-                    assert not isinstance(imgs, list) # make sure we have extracted the middle frame and it is no longer a list
+                    assert not isinstance(imgs, list)
                     images.append(imgs)
                 else:
                     images.append(imgs)
@@ -91,6 +91,11 @@ class MMEBModel(nn.Module):
             pooled_output = self.encoder(**input, return_dict=True, output_hidden_states=True)
             return pooled_output
         elif getattr(self, "model_backbone", None) == SIGLIP:
+            texts = [text for text in input.get("texts", [])]
+            images = input.get("images", [])
+            pooled_output = self.encoder.get_fused_embeddings(texts=texts, images=images)
+            return pooled_output
+        elif getattr(self, "model_backbone", None) == METACLIP2:
             texts = [text for text in input.get("texts", [])]
             images = input.get("images", [])
             pooled_output = self.encoder.get_fused_embeddings(texts=texts, images=images)
@@ -267,6 +272,12 @@ class MMEBModel(nn.Module):
                 processor=kwargs.get('processor', None),
             )
             setattr(base_model, 'config', config)
+        elif model_args.model_backbone == METACLIP2:
+            base_model = MetaCLIP2Model(
+                model_name=model_args.model_name,
+                processor=kwargs.get('processor', None),
+            )
+            setattr(base_model, 'config', config)
         else:
             # Loading external base model from HF
             config = AutoConfig.from_pretrained(model_args.model_name, trust_remote_code=True)
@@ -306,7 +317,7 @@ class MMEBModel(nn.Module):
 
     def forward(self, qry: Dict[str, Tensor] = None, tgt: Dict[str, Tensor] = None, *args, **kwargs):
         qry_reps = self.encode_input(qry) if qry else None  # (bsz_per_device, dim)
-        tgt_reps = self.encode_input(tgt) if tgt else None # (bsz_per_device, dim)
+        tgt_reps = self.encode_input(tgt) if tgt else None  # (bsz_per_device, dim)
 
         if qry_reps is None or tgt_reps is None:
             return {"qry_reps": qry_reps, "tgt_reps": tgt_reps}
