@@ -9,7 +9,11 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm.autonotebook import tqdm
-from transformers import AutoModelForVision2Seq, AutoProcessor, AutoConfig
+try:
+    from transformers import AutoModelForVision2Seq
+except ImportError:
+    from transformers import AutoModelForImageTextToText as AutoModelForVision2Seq
+from transformers import AutoProcessor, AutoConfig
 
 from src.model.vlm_backbone.qwen2_vl import Qwen2VLForConditionalGeneration
 from src.model.vlm_backbone.qwen2_vl import Qwen2VLProcessor
