@@ -7,7 +7,7 @@ hjson
 hnswlib
 huggingface-hub
 ninja
-numpy==1.26.4
+numpy>=2.0.0
 opencv-contrib-python
 opencv-python
 peft
@@ -24,6 +24,8 @@ timm
 torch
 torchvision
 tqdm
-transformers==4.52.3
+# transformers>=5.3.0.dev0 is required for metaclip_2 model_type support.
+# Install from source: pip install git+https://github.com/huggingface/transformers.git
+transformers @ git+https://github.com/huggingface/transformers.git
 wandb
 wrapt

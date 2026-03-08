@@ -21,7 +21,11 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
-from transformers.cache_utils import Cache, HybridCache, StaticCache
+from transformers.cache_utils import Cache, StaticCache
+try:
+    from transformers.cache_utils import HybridCache
+except ImportError:
+    HybridCache = StaticCache  # fallback for newer transformers versions
 from transformers.generation import GenerationMixin
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import (
