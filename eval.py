@@ -168,7 +168,7 @@ def main():
     training_args: TrainingArguments
     os.makedirs(data_args.encode_output_path, exist_ok=True)
 
-    SELF_CONTAINED_BACKBONES = {"metaclip2", "siglip", "colpali", "internvideo2"}
+    SELF_CONTAINED_BACKBONES = {"metaclip2", "siglip", "colpali", "internvideo2", "openclip"}
     explicit_backbone = getattr(model_args, "model_backbone", None)
     if explicit_backbone and explicit_backbone in SELF_CONTAINED_BACKBONES:
         hf_config = PretrainedConfig(model_type=explicit_backbone)

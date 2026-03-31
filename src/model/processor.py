@@ -41,6 +41,7 @@ COLPALI = 'colpali'  # PaliGemma-3B
 E5_V = 'e5_v'  # Llava_next
 SIGLIP = 'siglip'  # SigLIP dual-encoder
 METACLIP2 = 'metaclip2'  # MetaCLIP 2 dual-encoder
+OPENCLIP = 'openclip'  # OpenCLIP dual-encoder
 
 MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if not provided
     'phi3_v': PHI3V,
@@ -59,6 +60,7 @@ MODEL2BACKBONE = {  # keys are from hf_config.model_type or manually added if no
     'siglip': SIGLIP,
     'metaclip_2': METACLIP2,
     'metaclip2': METACLIP2,    
+    'openclip': OPENCLIP,
 }
 SUPPORTED_MODELS = set(MODEL2BACKBONE.keys())
 
@@ -77,6 +79,7 @@ VLM_IMAGE_TOKENS = {
     E5_V: "<image>",
     SIGLIP: "",
     METACLIP2: "",
+    OPENCLIP: "",
 }
 
 VLM_VIDEO_TOKENS = {
@@ -93,6 +96,7 @@ VLM_VIDEO_TOKENS = {
     E5_V: "<image>",
     SIGLIP: "",
     METACLIP2: "",
+    OPENCLIP: "",
 }
 
 backbone2model = {
@@ -204,6 +208,9 @@ def load_processor(model_args, data_args=None):
             model_args.processor_name if model_args.processor_name else model_args.model_name,
             trust_remote_code=True,
         )
+    elif model_args.model_backbone == OPENCLIP:
+        processor = None
+
     else:
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(
@@ -675,6 +682,13 @@ def MetaCLIP2_process_fn(model_inputs: dict, processor, max_length=None):
     }
     return inputs
 
+def OpenCLIP_process_fn(model_inputs: dict, processor, max_length=None):
+    """Simple passthrough for OpenCLIP. The OpenCLIPModel handles its own processing."""
+    inputs = {
+        'texts': model_inputs['text'],
+        'images': model_inputs['images'],
+    }
+    return inputs
 
 def process_input_text(instruction, model_backbone, text=None, add_video_token=False, add_image_token=False):
     # Formulate input text based on text, special token and instruction.
@@ -700,7 +714,12 @@ def process_input_text(instruction, model_backbone, text=None, add_video_token=F
             return instruction + " " + text
         else:
             return instruction + " "
-
+    elif model_backbone == OPENCLIP:
+        if text:
+            return instruction + " " + text
+        else:
+            return instruction + " "
+        
     prompt = instruction
     if text:
         prompt = prompt + " " + text
@@ -729,4 +748,5 @@ process_vlm_inputs_fns = {
     E5_V: Llava_NEXT_process_fn,
     SIGLIP: Siglip_process_fn,
     METACLIP2: MetaCLIP2_process_fn,
+    OPENCLIP: OpenCLIP_process_fn,
 }
