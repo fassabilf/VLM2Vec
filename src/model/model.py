@@ -294,6 +294,7 @@ class MMEBModel(nn.Module):
             config = PretrainedConfig(model_type='openclip')  # dummy config
             base_model = OpenCLIPModel(
                 model_name=model_args.model_name,
+                model_path=model_args.checkpoint_path or None,
             )
             setattr(base_model, 'config', config)
         else:
