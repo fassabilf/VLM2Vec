@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import List, Optional
 
 import open_clip
@@ -35,27 +36,42 @@ class OpenCLIPModel(nn.Module):
         **kwargs,
     ) -> None:
         super().__init__()
-        model_name = model_path or model_name
         self.device = device
 
-        self.model, self.preprocess = open_clip.create_model_from_pretrained(
-            f"hf-hub:{model_name}"
+        is_local = model_path is not None and (
+            os.path.isfile(model_path)
+            or model_path.endswith((".pt", ".pth", ".safetensors"))
         )
-        # Ganti try/except tokenizer dengan ini:
-        from transformers import AutoTokenizer
-        local_path = snapshot_download(repo_id=model_name, local_files_only=True)
-        try:
-            self.tokenizer = open_clip.get_tokenizer(f"hf-hub:{model_name}")
-        except Exception:
-            logger.warning("Falling back to AutoTokenizer from local cache...")
-            hf_tok = AutoTokenizer.from_pretrained(local_path)
-            context_len = self.model.context_length
-            class _TokenizerWrapper:
-                def __call__(self_, texts, context_length=None):
-                    cl = context_length or context_len
-                    return hf_tok(texts, return_tensors="pt", padding="max_length",
-                                truncation=True, max_length=cl)["input_ids"]
-            self.tokenizer = _TokenizerWrapper()
+
+        if is_local:
+            # Local .pt checkpoint: model_name = arch (e.g. "ViT-T-16"),
+            # model_path = path to .pt file
+            logger.info(f"Loading local checkpoint: arch={model_name!r}, path={model_path!r}")
+            self.model, _, self.preprocess = open_clip.create_model_and_transforms(
+                model_name, pretrained=model_path
+            )
+            self.tokenizer = open_clip.get_tokenizer(model_name)
+        else:
+            # HuggingFace Hub model
+            hf_name = model_path or model_name
+            logger.info(f"Loading HF Hub model: {hf_name!r}")
+            self.model, self.preprocess = open_clip.create_model_from_pretrained(
+                f"hf-hub:{hf_name}"
+            )
+            from transformers import AutoTokenizer
+            local_cache = snapshot_download(repo_id=hf_name, local_files_only=True)
+            try:
+                self.tokenizer = open_clip.get_tokenizer(f"hf-hub:{hf_name}")
+            except Exception:
+                logger.warning("Falling back to AutoTokenizer from local cache...")
+                hf_tok = AutoTokenizer.from_pretrained(local_cache)
+                context_len = self.model.context_length
+                class _TokenizerWrapper:
+                    def __call__(self_, texts, context_length=None):
+                        cl = context_length or context_len
+                        return hf_tok(texts, return_tensors="pt", padding="max_length",
+                                    truncation=True, max_length=cl)["input_ids"]
+                self.tokenizer = _TokenizerWrapper()
 
         self.model = self.model.to(self.device)
         self.model.eval()
