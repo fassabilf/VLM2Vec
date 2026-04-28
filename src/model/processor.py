@@ -702,23 +702,12 @@ def process_input_text(instruction, model_backbone, text=None, add_video_token=F
             return instruction + " "
     elif model_backbone == E5_V:
         return PROMPT_TEMPLATE_DICT[model_backbone](text, add_video_token, add_image_token)
-    elif model_backbone == SIGLIP:
-        # SigLIP handles text directly, no special tokens needed
-        if text:
-            return instruction + " " + text
-        else:
-            return instruction + " "
-    elif model_backbone == METACLIP2:
-        # MetaCLIP 2 handles text directly, no special tokens needed
-        if text:
-            return instruction + " " + text
-        else:
-            return instruction + " "
-    elif model_backbone == OPENCLIP:
-        if text:
-            return instruction + " " + text
-        else:
-            return instruction + " "
+    elif model_backbone in [SIGLIP, METACLIP2, OPENCLIP]:
+        # Dual-encoder CLIP-style models: return raw text only, no instruction wrapper.
+        # Instructions are out-of-distribution for CLIP text encoders (trained on natural
+        # captions). When text is empty the image side must be encoded pure — returning ""
+        # keeps has_text=False in get_fused_embeddings so no instruction gets summed in.
+        return text.strip() if text and text.strip() else ""
         
     prompt = instruction
     if text:
