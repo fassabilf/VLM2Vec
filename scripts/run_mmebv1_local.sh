@@ -33,6 +33,7 @@ CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES}" python3 eval.py \
   --pooling eos \
   --normalize true \
   --per_device_eval_batch_size "${BATCH_SIZE}" \
+  --dataloader_num_workers 4 \
   --model_backbone openclip \
   --model_name "${ARCH}" \
   --checkpoint_path "${WEIGHTS}" \
