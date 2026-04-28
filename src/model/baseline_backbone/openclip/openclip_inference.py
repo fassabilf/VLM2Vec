@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import os
 from typing import List, Optional
@@ -12,6 +13,8 @@ from torch import nn
 from huggingface_hub import snapshot_download
 
 logger = logging.getLogger(__name__)
+
+_NUM_WORKERS = 4
 
 
 class OpenCLIPModel(nn.Module):
@@ -95,7 +98,7 @@ class OpenCLIPModel(nn.Module):
 
     def _encode_text(self, texts: List[str]) -> torch.Tensor:
         """Encode a list of text strings into embeddings."""
-        tokens = self.tokenizer(texts).to(self.device)
+        tokens = self.tokenizer(texts).to(self.device, non_blocking=True)
         with torch.no_grad():
             emb = self.model.encode_text(tokens)
         return emb.to(torch.bfloat16)
@@ -118,9 +121,10 @@ class OpenCLIPModel(nn.Module):
                 0, self.vision_hidden_size, device=self.device, dtype=torch.bfloat16
             )
 
-        image_tensor = torch.stack([self.preprocess(img) for img in pil_images]).to(
-            self.device
-        )
+        # Parallelize preprocessing across worker threads (PIL ops release the GIL)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=_NUM_WORKERS) as ex:
+            tensors = list(ex.map(self.preprocess, pil_images))
+        image_tensor = torch.stack(tensors).to(self.device, non_blocking=True)
         with torch.no_grad():
             emb = self.model.encode_image(image_tensor)
         return emb.to(torch.bfloat16)

@@ -259,7 +259,7 @@ def main():
         if do_query:
             print_master("Encoding queries...")
             eval_qry_collator = MultimodalEvalDataCollator(processor, model_args, data_args, "qry")
-            eval_qry_loader = DataLoader(eval_qry_dataset, batch_size=current_batch_size, collate_fn=eval_qry_collator, num_workers=training_args.dataloader_num_workers)
+            eval_qry_loader = DataLoader(eval_qry_dataset, batch_size=current_batch_size, collate_fn=eval_qry_collator, num_workers=training_args.dataloader_num_workers, pin_memory=torch.cuda.is_available())
             query_embeds, gt_infos = encode_embeddings(model, eval_qry_loader, training_args, model_args, padded_qry_dataset, encode_side="qry", description=f"Queries for {dataset_name}")
             query_embeds = query_embeds[:len(full_eval_qry_dataset)]  # world_size>1, trim the padded data points
             gt_infos = gt_infos[:len(full_eval_qry_dataset)]
@@ -278,7 +278,7 @@ def main():
         if do_cand:
             print_master("Encoding candidates...")
             eval_cand_collator = MultimodalEvalDataCollator(processor, model_args, data_args, "cand")
-            eval_cand_loader = DataLoader(eval_cand_dataset, batch_size=current_batch_size, collate_fn=eval_cand_collator, num_workers=training_args.dataloader_num_workers)
+            eval_cand_loader = DataLoader(eval_cand_dataset, batch_size=current_batch_size, collate_fn=eval_cand_collator, num_workers=training_args.dataloader_num_workers, pin_memory=torch.cuda.is_available())
 
             cand_embeds, all_cand_ids = encode_embeddings(model, eval_cand_loader, training_args, model_args, padded_cand_dataset, encode_side="cand", description=f"Candidates for {dataset_name}")
             cand_embeds = cand_embeds[:len(full_eval_cand_dataset)]  # world_size>1, trim the padded data points
