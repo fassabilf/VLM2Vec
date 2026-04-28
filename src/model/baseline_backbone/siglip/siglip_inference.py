@@ -62,7 +62,7 @@ class SiglipModel(nn.Module):
             truncation=True,
             max_length=64,
         )
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        inputs = {k: v.to(self.device, non_blocking=True) for k, v in inputs.items()}
         outputs = self.model.get_text_features(**inputs)
         # get_text_features returns a tensor directly for SigLIP
         if hasattr(outputs, "pooler_output"):
@@ -95,7 +95,7 @@ class SiglipModel(nn.Module):
             return_tensors="pt",
             padding=True,
         )
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        inputs = {k: v.to(self.device, non_blocking=True) for k, v in inputs.items()}
         outputs = self.model.get_image_features(**inputs)
         if hasattr(outputs, "pooler_output"):
             emb = outputs.pooler_output
