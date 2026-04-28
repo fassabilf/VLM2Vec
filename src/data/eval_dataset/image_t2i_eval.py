@@ -3,7 +3,7 @@ import sys
 
 from datasets import load_dataset
 from src.data.eval_dataset.base_eval_dataset import AutoEvalPairDataset, add_metainfo_hook, RESOLUTION_MAPPING
-from src.model.processor import VLM_IMAGE_TOKENS
+from src.model.processor import VLM_IMAGE_TOKENS, OPENCLIP, SIGLIP, METACLIP2
 from src.model.processor import process_input_text
 
 
@@ -15,10 +15,14 @@ def data_prepare(batch_dict, *args, **kwargs):
     query_texts, query_images, cand_texts, cand_images, dataset_infos = [], [], [], [], []
     for qry_inst, qry_text, tgt_inst, tgt_captions, tgt_img_paths in (
             zip(batch_dict['qry_inst'], batch_dict['qry_text'], batch_dict['tgt_inst'], batch_dict['tgt_text'], batch_dict['tgt_img_path'])):
-        qry_inst = qry_inst.replace("<|image_1|>", VLM_IMAGE_TOKENS[model_backbone])
-        query_text = qry_inst + ' ' + qry_text + '\n'
-        if kwargs['dataset_name'] == 'VisDial':
-            query_text += '\n' # to be consistent with v1
+        if model_backbone in [OPENCLIP, SIGLIP, METACLIP2]:
+            # CLIP-style models: use raw query text only, no instruction wrapper
+            query_text = qry_text.strip() if qry_text and qry_text.strip() else qry_inst
+        else:
+            qry_inst = qry_inst.replace("<|image_1|>", VLM_IMAGE_TOKENS[model_backbone])
+            query_text = qry_inst + ' ' + qry_text + '\n'
+            if kwargs['dataset_name'] == 'VisDial':
+                query_text += '\n'  # to be consistent with v1
         query_texts.append([query_text])
         query_images.append([None])
 
