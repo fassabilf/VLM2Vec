@@ -96,6 +96,56 @@ else:
 | Nature of error | Image embeddings were mixed with instruction-text semantics, degrading visual retrieval quality |
 | Scope of fix | All image-only encoding paths (query and candidate side) |
 
+### 1.6 Before vs. After Results — MetaCLIP2-worldwide-huge-quickgelu (Hit@1)
+
+Average hit@1 improved from **35.2%** (buggy) → **46.5%** (fixed), a gain of **+11.4pp** across 36 tasks.
+
+| Task | Before | After | Δ |
+|------|-------:|------:|--:|
+| VisualNews_i2t | 0.014 | 0.878 | **+0.864** |
+| MSCOCO_i2t | 0.018 | 0.651 | **+0.633** |
+| ImageNet-1K | 0.278 | 0.765 | **+0.487** |
+| ImageNet-A | 0.089 | 0.457 | **+0.368** |
+| RefCOCO-Matching | 0.690 | 0.969 | **+0.279** |
+| SUN397 | 0.430 | 0.726 | **+0.296** |
+| Place365 | 0.201 | 0.427 | **+0.226** |
+| Country211 | 0.235 | 0.440 | **+0.205** |
+| ObjectNet | 0.555 | 0.738 | **+0.183** |
+| ImageNet-R | 0.755 | 0.921 | **+0.166** |
+| EDIS | 0.838 | 0.969 | **+0.131** |
+| MSCOCO_t2i | 0.597 | 0.691 | +0.094 |
+| VisDial | 0.202 | 0.283 | +0.081 |
+| VizWiz | 0.131 | 0.060 | -0.071 |
+| Wiki-SS-NQ | 0.566 | 0.612 | +0.046 |
+| N24News | 0.496 | 0.537 | +0.041 |
+| VisualNews_t2i | 0.810 | 0.841 | +0.031 |
+| CIRR | 0.106 | 0.122 | +0.016 |
+| RefCOCO | 0.547 | 0.562 | +0.015 |
+| MSCOCO | 0.352 | 0.363 | +0.011 |
+| ScienceQA | 0.101 | 0.152 | +0.051 |
+| GQA | 0.432 | 0.449 | +0.017 |
+| VOC2007 | 0.649 | 0.666 | +0.017 |
+| FashionIQ | 0.131 | 0.138 | +0.007 |
+| InfographicsVQA | 0.049 | 0.053 | +0.004 |
+| ChartQA | 0.020 | 0.023 | +0.003 |
+| NIGHTS | 0.533 | 0.537 | +0.004 |
+| HatefulMemes | 0.490 | 0.482 | -0.008 |
+| TextVQA | 0.147 | 0.112 | -0.035 |
+| DocVQA | 0.075 | 0.066 | -0.009 |
+| A-OKVQA | 0.040 | 0.034 | -0.006 |
+| OK-VQA | 0.123 | 0.112 | -0.011 |
+| WebQA | 0.731 | 0.720 | -0.011 |
+| OVEN | 0.597 | 0.577 | -0.020 |
+| Visual7W-Pointing | 0.606 | 0.597 | -0.009 |
+| Visual7W | 0.030 | 0.022 | -0.008 |
+| **Average** | **0.352** | **0.465** | **+0.114** |
+
+**Key observations:**
+
+- Tasks with a pure image-only query side (ImageNet-1K, ImageNet-A, ImageNet-R, Country211, Place365, SUN397, ObjectNet) show the largest gains — these tasks had zero meaningful text, so the buggy code was adding pure instruction noise to the query embeddings.
+- i2t retrieval tasks (VisualNews_i2t, MSCOCO_i2t) show extreme gains (+0.864, +0.633) because both the query image embedding and the candidate image embeddings were corrupted.
+- VQA tasks (VizWiz, TextVQA, DocVQA, OK-VQA) show small regressions — likely because the old (buggy) text injection inadvertently provided some task signal that the model could partially leverage, even if out-of-distribution. These tasks are inherently weak for CLIP-style models regardless.
+
 ---
 
 ## Part 2 — Performance Fix: GPU Underutilization
