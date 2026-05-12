@@ -5,14 +5,16 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH -t 12:00:00
 #SBATCH -A lt200394
-#SBATCH -J mmeb_clipkd-released-ViT-B-16-teacher-laion400m_visdoc
-#SBATCH -o /project/lt200394-thllmV/benchmark/VLM2Vec/logs/%x_%j.out
+#SBATCH -J mmebv2_visdoc_siglip2
+#SBATCH -o ./logs/%x_%j.out
 
 set -euo pipefail
 
 export HF_HOME="/project/lt200394-thllmV/benchmark/.cache/huggingface"
 export HF_DATASETS_CACHE="/project/lt200394-thllmV/benchmark/.cache/huggingface/datasets"
 export HF_HUB_CACHE="/project/lt200394-thllmV/benchmark/.cache/huggingface/hub"
+
+# offline mode (kalau cache sudah lengkap)
 export HF_DATASETS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 
@@ -31,16 +33,16 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
 echo "=== toolchain ==="
 which gcc; gcc --version
+which g++; g++ --version
 which nvcc; nvcc --version
 python --version || true
 
 module load Mamba/23.11.0-0
 conda activate vlm2vec_env
 
+# Optional overrides
 export CUDA_VISIBLE_DEVICES=0
 export BATCH_SIZE=64
-export OUTPUT_PATH="/project/lt200394-thllmV/benchmark/VLM2Vec/results/clipkd-released-ViT-B-16-teacher-laion400m/visdoc/"
-export DATA_BASEDIR="data/vlm2vec_eval"
 
-cd "/project/lt200394-thllmV/benchmark/VLM2Vec"
-bash "/project/lt200394-thllmV/benchmark/VLM2Vec/scripts/run_mmeb_clipkd-released-ViT-B-16-teacher-laion400m_visdoc.sh"
+# run visdoc script
+bash ./scripts/run_mmebv2_siglip2_visdoc.sh

@@ -1,27 +1,33 @@
 #!/bin/bash
 # ==============================================================
-# Template: evaluate a local .pt checkpoint on MMEB v1
-# without uploading to HuggingFace.
+# Evaluate a local .pt checkpoint on MMEB v1 (image + visdoc).
 #
-# Fill in the four variables below, then submit with:
-#   sbatch scripts/sbatch_mmebv1_local_template.sh
+# Usage: just run it directly — it submits both modalities.
+#   bash scripts/sbatch_mmebv1_local_template.sh
 # ==============================================================
 
-# ---- Configure these four variables -------------------------
-export ARCH="ViT-T-16"                    # open_clip architecture name
-export WEIGHTS="/path/to/epoch_32.pt"     # absolute path to .pt checkpoint
-export RUN_NAME="my-experiment"           # used as result folder name
-export MODALITY="image"                   # "image" or "visdoc"
+# ---- Configure these three variables ------------------------
+ARCH="ViT-T-16"
+WEIGHTS="/project/lt200394-thllmV/multilingual-clip-kd/open_clip/experiments/siglip2_kd/clipkd_ViT-T-16_from_ViT-B-16-SigLIP2_v2/checkpoints/epoch_latest.pt"
+RUN_NAME="clipkd-ViT-T-16-from-SigLIP2-v2"
 # -------------------------------------------------------------
 
-#SBATCH -p gpu
-#SBATCH -N 1 -c 16
-#SBATCH --gpus-per-node=1
-#SBATCH --ntasks-per-node=1
-#SBATCH -t 12:00:00
-#SBATCH -A lt200394
-#SBATCH -J mmebv1_local_${RUN_NAME}
-#SBATCH -o ./logs/%x_%j.out
+# If not inside a SLURM job yet, submit self as array (1=image, 2=visdoc)
+if [[ -z "${SLURM_ARRAY_TASK_ID}" ]]; then
+    exec sbatch \
+        --array="1-2" \
+        --export="ARCH=${ARCH},WEIGHTS=${WEIGHTS},RUN_NAME=${RUN_NAME}" \
+        -p gpu -N 1 -c 16 --gpus-per-node=1 --ntasks-per-node=1 \
+        -t 12:00:00 -A lt200394 \
+        -J "mmebv1_local_${RUN_NAME}" \
+        -o "/project/lt200394-thllmV/benchmark/VLM2Vec/logs/%x_%A_%a.out" \
+        "$0"
+fi
+
+# === Inside SLURM array job ===
+# array index 1 = image, 2 = visdoc
+MODALITIES=("" "image" "visdoc")
+export MODALITY="${MODALITIES[$SLURM_ARRAY_TASK_ID]}"
 
 set -euo pipefail
 
